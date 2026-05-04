@@ -62,19 +62,6 @@ export default function ConfigPage() {
         </div>
       </div>
 
-      <div className="card border-red-200">
-        <div className="card-title text-red-600">⚠️ Zona de Perigo</div>
-        <p className="text-xs text-gray-500 mb-3">Atenção: ações irreversíveis abaixo.</p>
-        <div className="flex gap-2 flex-wrap">
-          <button className="btn btn-outline btn-sm" onClick={async()=>{
-            if(!confirm('Restaurar dados de demonstração?')) return
-            const res = await fetch('/api/seed', { method:'POST' })
-            if(res.ok) setMsg({text:'Dados de demonstração restaurados!',type:'ok'})
-            else setMsg({text:'Erro ao restaurar dados',type:'err'})
-            setTimeout(()=>setMsg(null),3000)
-          }}>🔄 Restaurar dados de demonstração</button>
-        </div>
-      </div>
     </div>
   )
 }

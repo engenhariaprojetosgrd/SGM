@@ -9,10 +9,11 @@
     --blue3:  #4a9fd4;
   }
   body { @apply bg-slate-100 text-gray-800 text-sm; }
+  * { -webkit-tap-highlight-color: transparent; }
 }
 
 @layer components {
-  .card       { @apply bg-white rounded-xl shadow-sm border border-slate-200 p-5; }
+  .card       { @apply bg-white rounded-xl shadow-sm border border-slate-200 p-4 sm:p-5; }
   .card-title { @apply text-sm font-bold text-[#1a3a5c] mb-4 flex items-center gap-2; }
   .badge      { @apply inline-block px-2 py-0.5 rounded-full text-xs font-bold; }
   .badge-green  { @apply bg-green-100 text-green-800; }
@@ -47,4 +48,13 @@
   .kpi.kpi-green { border-left-color: #16a34a; }
   .kpi.kpi-orange{ border-left-color: #ea580c; }
   .kpi.kpi-purple{ border-left-color: #7c3aed; }
+
+  /* Mobile: inputs and selects larger touch target */
+  @media (max-width: 640px) {
+    .inp  { @apply py-2.5 text-base; }
+    .btn  { @apply py-2.5; }
+    select.inp { font-size: 16px; } /* prevents iOS zoom on focus */
+    input.inp  { font-size: 16px; }
+    textarea.inp { font-size: 16px; }
+  }
 }
