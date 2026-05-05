@@ -1,13 +1,13 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import type { Hose, Failure } from '@/types'
-import { EQUIPMENT_LIST, SUPPLIER_LIST } from '@/types'
+import type { Hose, Failure, AppConfig } from '@/types'
 import { fmt, fmtN } from '@/lib/calculations'
 
 export default function HistoricoPage() {
   const [hoses,    setHoses]    = useState<Hose[]>([])
   const [failures, setFailures] = useState<Failure[]>([])
+  const [config,   setConfig]   = useState<AppConfig | null>(null)
   const [loading,  setLoading]  = useState(true)
   const [fEq,  setFEq]  = useState('')
   const [fSup, setFSup] = useState('')
@@ -16,11 +16,12 @@ export default function HistoricoPage() {
 
   useEffect(() => {
     async function load() {
-      const [{ data: h }, { data: f }] = await Promise.all([
+      const [{ data: h }, { data: f }, { data: c }] = await Promise.all([
         supabase.from('hoses').select('*').order('created_at',{ascending:false}),
         supabase.from('failures').select('*').order('fail_date',{ascending:false}),
+        supabase.from('app_config').select('*').eq('id',1).single(),
       ])
-      setHoses(h??[]); setFailures(f??[]); setLoading(false)
+      setHoses(h??[]); setFailures(f??[]); setConfig(c); setLoading(false)
     }
     load()
   }, [])
@@ -39,7 +40,11 @@ export default function HistoricoPage() {
     return true
   })
 
-  const failTypes = [...new Set(failures.map(f=>f.fail_type).filter(Boolean))]
+  // Dynamic lists from actual data (works with free-text equipment names)
+  const equipOptions = [...new Set([...hoses.map(h=>h.equip), ...failures.map(f=>f.equip)])].filter(Boolean).sort()
+  const supOptions   = [...new Set([...hoses.map(h=>h.supplier), ...failures.map(f=>f.supplier_orig??'').filter(s=>s)])].sort()
+  const failTypes    = [...new Set(failures.map(f=>f.fail_type).filter(Boolean))]
+  const machineCost  = config?.machine_cost_per_hour ?? 800
 
   if (loading) return <div className="text-center py-12 text-gray-400">Carregando histórico...</div>
 
@@ -53,13 +58,13 @@ export default function HistoricoPage() {
           <div><label className="lbl">Equipamento</label>
             <select className="inp text-xs py-1.5" value={fEq} onChange={e=>setFEq(e.target.value)}>
               <option value="">Todos</option>
-              {EQUIPMENT_LIST.map(e=><option key={e}>{e}</option>)}
+              {equipOptions.map(e=><option key={e}>{e}</option>)}
             </select>
           </div>
           <div><label className="lbl">Fornecedor</label>
             <select className="inp text-xs py-1.5" value={fSup} onChange={e=>setFSup(e.target.value)}>
               <option value="">Todos</option>
-              {SUPPLIER_LIST.map(s=><option key={s}>{s}</option>)}
+              {supOptions.map(s=><option key={s}>{s}</option>)}
             </select>
           </div>
           <div><label className="lbl">Status</label>
@@ -133,7 +138,7 @@ export default function HistoricoPage() {
                   <td><span className={`badge ${f.fail_type==='Estouro'?'badge-red':f.fail_type==='Vazamento'?'badge-orange':'badge-gray'}`}>{f.fail_type??'—'}</span></td>
                   <td className="font-bold">{f.mtbf!=null?fmtN(f.mtbf)+'h':'—'}</td>
                   <td>{f.downtime?.toFixed(1)}h</td>
-                  <td className="text-red-600 font-bold">{fmt((f.downtime??0)*800,0)}</td>
+                  <td className="text-red-600 font-bold">{fmt((f.downtime??0)*machineCost,0)}</td>
                   <td className="text-gray-500">{f.root_cause??'—'}</td>
                 </tr>
               ))}

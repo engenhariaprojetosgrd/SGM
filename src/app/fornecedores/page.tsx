@@ -32,10 +32,18 @@ export default function FornecedoresPage() {
   }, [])
 
   if (loading) return <div className="text-center py-12 text-gray-400">Carregando análise...</div>
-  if (!config) return <div className="alert alert-danger">Configuração não encontrada. Acesse ⚙️ Config e salve.</div>
 
-  const stats = getSupplierStats(hoses, failures, config)
-  const comparison = calcRealCostComparison(stats, config)
+  // Use default config values when none saved yet — page always renders
+  const effectiveConfig: AppConfig = config ?? {
+    id: 1,
+    machine_cost_per_hour: 800,
+    labor_cost_per_hour: 45,
+    labor_hours_install: 1.5,
+    fleet_name: 'MRN – Motoniveladora',
+  }
+
+  const stats = getSupplierStats(hoses, failures, effectiveConfig)
+  const comparison = calcRealCostComparison(stats, effectiveConfig)
   const tcoChartData = stats.map(s=>({ name:s.name, 'Material':+s.matPerH.toFixed(4), 'Mão de Obra':+s.labPerH.toFixed(4), 'Parada Produtiva':+s.dtPerH.toFixed(4) }))
   const scatterData  = stats.map(s=>({ name:s.name, custo:+s.avgCost.toFixed(0), mtbf:+s.avgMTBF.toFixed(0) }))
 
@@ -43,9 +51,27 @@ export default function FornecedoresPage() {
     <div className="space-y-5">
       <h1 className="text-lg font-bold text-[#1a3a5c]">🏭 Análise de Fornecedores – TCO Real</h1>
 
+      {!config && (
+        <div className="alert alert-warning">
+          ⚙️ Usando valores padrão de custo. Acesse <strong>Config</strong> para personalizar os parâmetros da sua frota.
+        </div>
+      )}
+
       <div className="alert alert-info">
         <strong>💡 Como ler esta análise:</strong> O TCO (Custo Total por Hora) considera <strong>material + mão de obra + custo da parada produtiva</strong>. Uma mangueira barata que falha com frequência pode custar <strong>5 a 7× mais</strong> do que uma genuína.
       </div>
+
+      {/* Empty state when no failure data yet */}
+      {stats.length === 0 && (
+        <div className="card text-center py-10 text-gray-400">
+          <div className="text-4xl mb-3">📊</div>
+          <div className="text-base font-bold text-gray-500 mb-1">Nenhuma ocorrência registrada ainda</div>
+          <div className="text-sm">Registre ocorrências na aba <strong>⚠️ Ocorrências</strong> para ver a análise comparativa de fornecedores por TCO real.</div>
+        </div>
+      )}
+
+      {/* All data-dependent content — only renders when we have failures */}
+      {stats.length > 0 && <>
 
       {/* Supplier ranking cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -174,6 +200,8 @@ export default function FornecedoresPage() {
           </ResponsiveContainer>
         </div>
       </div>
+
+      </>}
     </div>
   )
 }
