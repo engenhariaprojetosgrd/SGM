@@ -1,5 +1,5 @@
 -- ============================================================
--- SGMH – Sistema de Gestão de Mangueiras Hidráulicas
+-- SGM – Sistema de Gestão de Mangueiras Hidráulicas
 -- Migration 001: Schema inicial
 -- ============================================================
 

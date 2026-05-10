@@ -3,7 +3,7 @@ import './globals.css'
 import Nav from '@/components/Nav'
 
 export const metadata: Metadata = {
-  title: 'SGMH – Gestão de Mangueiras Hidráulicas',
+  title: 'SGM – Gestão de Mangueiras Hidráulicas',
   description: 'Sistema de controle, análise e comparativo de fornecedores de mangueiras hidráulicas',
 }
 

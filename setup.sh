@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================
-#  SGMH – Setup Automatizado
+#  SGM – Setup Automatizado
 #  Uso: bash setup.sh
 # ============================================================
 set -e
@@ -14,7 +14,7 @@ error() { echo -e "  ${RED}✗ $1${NC}"; exit 1; }
 
 echo -e "${BLUE}"
 echo "  ╔══════════════════════════════════════════╗"
-echo "  ║  SGMH – Sistema de Gestão de Mangueiras  ║"
+echo "  ║  SGM – Sistema de Gestão de Mangueiras    ║"
 echo "  ║  Setup Automatizado v1.0                  ║"
 echo "  ╚══════════════════════════════════════════╝"
 echo -e "${NC}"
@@ -89,7 +89,7 @@ step "Configurando repositório Git"
 if [ ! -d .git ]; then
   git init
   git add .
-  git commit -m "feat: initial commit – SGMH v1.0"
+  git commit -m "feat: initial commit – SGM v1.0"
   ok "Repositório git inicializado"
 else
   ok "Git já inicializado"
@@ -99,8 +99,8 @@ fi
 step "Criando repositório no GitHub"
 if command -v gh &>/dev/null; then
   if gh auth status &>/dev/null; then
-    read -p "  Nome do repositório GitHub (default: sgmh): " REPO_NAME
-    REPO_NAME="${REPO_NAME:-sgmh}"
+    read -p "  Nome do repositório GitHub (default: sgm): " REPO_NAME
+    REPO_NAME="${REPO_NAME:-sgm}"
     read -p "  Público ou privado? (public/private, default: private): " VISIBILITY
     VISIBILITY="${VISIBILITY:-private}"
     gh repo create "$REPO_NAME" --"$VISIBILITY" --source=. --remote=origin --push
@@ -108,13 +108,13 @@ if command -v gh &>/dev/null; then
     ok "Repositório criado e código enviado: $REPO_URL"
   else
     warn "Execute 'gh auth login' para autenticar no GitHub CLI"
-    ask "Depois: gh repo create sgmh --private --source=. --remote=origin --push"
+    ask "Depois: gh repo create sgm --private --source=. --remote=origin --push"
   fi
 else
   warn "GitHub CLI (gh) não encontrado."
-  ask "Opção A: Instale em https://cli.github.com e rode 'gh repo create sgmh --private --source=. --remote=origin --push'"
+  ask "Opção A: Instale em https://cli.github.com e rode 'gh repo create sgm --private --source=. --remote=origin --push'"
   ask "Opção B: Crie o repo manualmente em https://github.com/new e faça:"
-  ask "  git remote add origin https://github.com/SEU_USUARIO/sgmh.git"
+  ask "  git remote add origin https://github.com/SEU_USUARIO/sgm.git"
   ask "  git push -u origin main"
 fi
 

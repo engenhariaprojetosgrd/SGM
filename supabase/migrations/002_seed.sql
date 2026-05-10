@@ -1,5 +1,5 @@
 -- ============================================================
--- SGMH – Seed: Dados de demonstração (frota MRN)
+-- SGM – Seed: Dados de demonstração (frota MRN)
 -- ============================================================
 
 INSERT INTO hoses (id,equip,system,position,supplier,hose_type,part_number,unit_cost,install_date,install_hours,expected_life,notes,status) VALUES

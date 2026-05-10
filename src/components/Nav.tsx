@@ -22,7 +22,7 @@ export default function Nav() {
         {/* Top bar */}
         <div className="flex items-center justify-between h-12">
           <span className="text-white font-bold text-sm whitespace-nowrap">
-            ⚙️ <span className="text-[#4a9fd4]">SGMH</span>
+            ⚙️ <span className="text-[#4a9fd4]">SGM</span>
             <span className="hidden sm:inline"> · Mangueiras Hidráulicas</span>
           </span>
 
