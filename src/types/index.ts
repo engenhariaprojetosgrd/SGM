@@ -59,7 +59,8 @@ export interface SupplierStats {
 export const EQUIPMENT_LIST = ['MM8301','MM8302','MM8303','MM8201','MM8202','MM7401']
 export const SYSTEM_LIST = [
   'Sistema Hidráulico','Sistema de Direção','Sistema de Implementos',
-  'Sistema de Lubrificação','Sistema de Arrefecimento','Sistema de Freio'
+  'Sistema de Lubrificação','Sistema de Arrefecimento','Sistema de Freio',
+  'Outro'
 ]
 export const SUPPLIER_LIST = ['SOTREQ','TMH','HC Hidráulica']
 export const HOSE_TYPES = ['Genuína (OEM)','Alternativa','Recondicionada']

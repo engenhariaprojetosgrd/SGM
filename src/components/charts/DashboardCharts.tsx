@@ -10,9 +10,9 @@ const PALETTE = ['#2e6da4','#dc2626','#ea580c','#16a34a','#7c3aed','#0891b2','#c
 const SUP_COLOR: Record<string, string> = { SOTREQ: '#16a34a', TMH: '#dc2626' }
 const supColor = (s: string) => SUP_COLOR[s] ?? '#ea580c'
 
-// Chart heights — reduced vs prototype to match visual target
-const H  = 210   // regular charts
-const HT = 250   // taller chart (TCO composition)
+// Chart heights — matching prototype (chart-wrap 240/300px)
+const H  = 200   // regular charts (smaller cards)
+const HT = 240   // taller chart (TCO composition)
 
 interface Props {
   hoses:    Hose[]
@@ -21,13 +21,35 @@ interface Props {
   config:   AppConfig | null
 }
 
+function EmptyChart({ title, msg = 'Sem dados ainda' }: { title: string; msg?: string }) {
+  return (
+    <div className="card">
+      <div className="card-title">{title}</div>
+      <div className="flex items-center justify-center h-[200px] text-gray-300 text-sm border border-dashed border-gray-200 rounded">
+        {msg}
+      </div>
+    </div>
+  )
+}
+
 export default function DashboardCharts({ hoses, failures, stats }: Props) {
+  // No failures yet → render the same prototype layout, but with empty placeholders
   if (!failures.length) {
     return (
-      <div className="card text-center py-10 text-gray-400">
-        <div className="text-4xl mb-3">📈</div>
-        <div className="text-sm">
-          Cadastre mangueiras e registre ocorrências para ver os gráficos de análise.
+      <div className="space-y-4">
+        <div className="card">
+          <div className="card-title">📊 Composição do TCO por Fornecedor (R$/h)</div>
+          <div className="flex items-center justify-center h-[240px] text-gray-300 text-sm border border-dashed border-gray-200 rounded">
+            Registre ocorrências para ver a composição do TCO
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <EmptyChart title="⏱️ MTBF Médio por Fornecedor (h)" />
+          <EmptyChart title="🔴 Falhas por Fornecedor" />
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <EmptyChart title="🚧 Falhas por Equipamento" />
+          <EmptyChart title="⚙️ Ocorrências por Tipo de Falha" />
         </div>
       </div>
     )
@@ -84,7 +106,7 @@ export default function DashboardCharts({ hoses, failures, stats }: Props) {
       )}
 
       {/* MTBF + Falhas por fornecedor */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-2 gap-4">
         {mtbfData.length > 0 && (
           <div className="card">
             <div className="card-title">⏱️ MTBF Médio por Fornecedor (h)</div>
@@ -123,7 +145,7 @@ export default function DashboardCharts({ hoses, failures, stats }: Props) {
       </div>
 
       {/* Falhas por equipamento + por tipo */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-2 gap-4">
         {equipData.length > 0 && (
           <div className="card">
             <div className="card-title">🚧 Falhas por Equipamento</div>

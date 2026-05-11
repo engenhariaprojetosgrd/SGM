@@ -17,6 +17,7 @@ export default function MangueirasPage() {
   const [hoses,         setHoses]         = useState<Hose[]>([])
   const [form,          setForm]          = useState<Partial<Hose>>(empty)
   const [otherSupplier, setOtherSupplier] = useState('')
+  const [otherSystem,   setOtherSystem]   = useState('')
   const [loading,       setLoading]       = useState(true)
   const [saving,        setSaving]        = useState(false)
   const [msg,           setMsg]           = useState<{text:string;type:'ok'|'err'} | null>(null)
@@ -51,21 +52,34 @@ export default function MangueirasPage() {
     e.preventDefault()
     const finalSupplier = form.supplier === 'Outro' ? otherSupplier.trim() : form.supplier
     if (!finalSupplier) { setMsg({ text: 'Informe o nome do fornecedor', type: 'err' }); return }
+    const finalSystem = form.system === 'Outro' ? otherSystem.trim() : form.system
+    if (!finalSystem) { setMsg({ text: 'Informe o sistema', type: 'err' }); return }
     setSaving(true)
-    const payload = { ...form, supplier: finalSupplier, id: nextId(hoses), status: 'active' } as Hose
+    const payload = {
+      ...form,
+      supplier: finalSupplier,
+      system: finalSystem,
+      id: nextId(hoses),
+      status: 'active'
+    } as Hose
     const { error } = await supabase.from('hoses').insert(payload)
     if (error) { setMsg({ text: 'Erro: ' + error.message, type: 'err' }) }
-    else { setMsg({ text: 'Mangueira cadastrada!', type: 'ok' }); setForm(empty); setOtherSupplier(''); load() }
+    else { setMsg({ text: 'Mangueira cadastrada!', type: 'ok' }); setForm(empty); setOtherSupplier(''); setOtherSystem(''); load() }
     setSaving(false)
     setTimeout(() => setMsg(null), 3000)
   }
 
-  async function archiveHose(id: string) {
+  async function deleteHose(id: string, equip: string) {
     setMenuOpen(null)
-    if (!confirm(`Arquivar mangueira ${id}?\n\nEla será removida dos cálculos ativos, mas todas as ocorrências vinculadas serão mantidas no histórico.`)) return
-    const { error } = await supabase.from('hoses').update({ status: 'archived' }).eq('id', id)
-    if (error) { setMsg({ text: 'Erro ao arquivar: ' + error.message, type: 'err' }) }
-    else { setMsg({ text: `Mangueira ${id} arquivada. Histórico de ocorrências preservado.`, type: 'ok' }); load() }
+    if (!confirm(
+      `Excluir DEFINITIVAMENTE a mangueira ${id} (${equip})?\n\n` +
+      `Esta ação NÃO pode ser desfeita. Ocorrências vinculadas a essa mangueira ` +
+      `ficarão sem referência (mas o histórico delas será mantido).\n\n` +
+      `Deseja continuar?`
+    )) return
+    const { error } = await supabase.from('hoses').delete().eq('id', id)
+    if (error) { setMsg({ text: 'Erro ao excluir: ' + error.message, type: 'err' }) }
+    else { setMsg({ text: `Mangueira ${id} excluída.`, type: 'ok' }); load() }
     setTimeout(() => setMsg(null), 4000)
   }
 
@@ -101,6 +115,18 @@ export default function MangueirasPage() {
                 {SYSTEM_LIST.map(s => <option key={s}>{s}</option>)}
               </select>
             </div>
+
+            {form.system === 'Outro' && (
+              <div>
+                <label className="lbl">Nome do Sistema *</label>
+                <input
+                  className="inp" required
+                  placeholder="Ex: Sistema de Suspensão"
+                  value={otherSystem}
+                  onChange={e => setOtherSystem(e.target.value)}
+                />
+              </div>
+            )}
 
             <div>
               <label className="lbl">Posição / Local *</label>
@@ -206,12 +232,12 @@ export default function MangueirasPage() {
                           onClick={() => setMenuOpen(prev => prev === h.id ? null : h.id)}
                         >⋮</button>
                         {menuOpen === h.id && (
-                          <div className="absolute right-0 top-7 z-20 bg-white border border-slate-200 rounded-lg shadow-lg py-1 min-w-[150px] text-left">
+                          <div className="absolute right-0 top-7 z-20 bg-white border border-slate-200 rounded-lg shadow-lg py-1 min-w-[170px] text-left">
                             <button
                               className="w-full text-left px-4 py-2 text-xs text-red-600 hover:bg-red-50 font-medium"
-                              onClick={() => archiveHose(h.id)}
+                              onClick={() => deleteHose(h.id, h.equip)}
                             >
-                              📦 Arquivar mangueira
+                              🗑️ Excluir registro
                             </button>
                             <button
                               className="w-full text-left px-4 py-2 text-xs text-gray-500 hover:bg-gray-50"
@@ -229,42 +255,76 @@ export default function MangueirasPage() {
             </div>
           </div>
 
-          {/* Mangueiras Substituídas */}
-          <div className="card">
-            <div className="card-title">🔄 Mangueiras Substituídas ({replaced.length})</div>
-            <div className="overflow-x-auto -mx-5 px-5">
-              <table className="tbl w-full min-w-[500px]">
-                <thead>
-                  <tr><th>ID</th><th>Equipamento</th><th>Sistema</th><th>Posição</th><th>Fornecedor</th><th>Custo</th><th>Instalação</th></tr>
-                </thead>
-                <tbody>
-                  {replaced.length === 0 && <tr><td colSpan={7} className="text-center py-6 text-gray-400">Nenhuma</td></tr>}
-                  {replaced.map(h => (
-                    <tr key={h.id} className="opacity-60">
-                      <td><span className="badge badge-gray">{h.id}</span></td>
-                      <td className="font-bold">{h.equip}</td>
-                      <td>{h.system}</td>
-                      <td>{h.position}</td>
-                      <td><SupplierBadge s={h.supplier} /></td>
-                      <td>{fmt(h.unit_cost)}</td>
-                      <td>{h.install_date ?? '—'}</td>
+          {/* Mangueiras Substituídas — histórico para MTBF/TCO */}
+          {replaced.length > 0 && (
+            <div className="card">
+              <div className="card-title">🔄 Mangueiras Substituídas ({replaced.length})
+                <span className="text-xs font-normal text-gray-400 ml-2">— histórico usado nos cálculos de MTBF/TCO</span>
+              </div>
+              <div className="overflow-x-auto -mx-5 px-5">
+                <table className="tbl w-full min-w-[640px]">
+                  <thead>
+                    <tr>
+                      <th>ID</th><th>Equipamento</th><th>Sistema</th><th>Posição</th>
+                      <th>Fornecedor</th><th>Custo</th><th>Instalação</th>
+                      <th className="text-center">Ações</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {replaced.map(h => (
+                      <tr key={h.id} className="opacity-60">
+                        <td><span className="badge badge-gray">{h.id}</span></td>
+                        <td className="font-bold">{h.equip}</td>
+                        <td>{h.system}</td>
+                        <td>{h.position}</td>
+                        <td><SupplierBadge s={h.supplier} /></td>
+                        <td>{fmt(h.unit_cost)}</td>
+                        <td>{h.install_date ?? '—'}</td>
+                        <td className="text-center relative" ref={menuOpen === h.id ? menuRef : null}>
+                          <button
+                            className="px-2 py-1 rounded hover:bg-gray-100 text-gray-500 font-bold text-base leading-none"
+                            title="Ações"
+                            onClick={() => setMenuOpen(prev => prev === h.id ? null : h.id)}
+                          >⋮</button>
+                          {menuOpen === h.id && (
+                            <div className="absolute right-0 top-7 z-20 bg-white border border-slate-200 rounded-lg shadow-lg py-1 min-w-[170px] text-left">
+                              <button
+                                className="w-full text-left px-4 py-2 text-xs text-red-600 hover:bg-red-50 font-medium"
+                                onClick={() => deleteHose(h.id, h.equip)}
+                              >
+                                🗑️ Excluir registro
+                              </button>
+                              <button
+                                className="w-full text-left px-4 py-2 text-xs text-gray-500 hover:bg-gray-50"
+                                onClick={() => setMenuOpen(null)}
+                              >
+                                ✕ Cancelar
+                              </button>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
+          )}
 
-          {/* Mangueiras Arquivadas — só mostra se existir alguma */}
+          {/* Mangueiras Arquivadas — legado; só aparece se houver alguma; permite excluir */}
           {archived.length > 0 && (
             <div className="card">
               <div className="card-title">📦 Mangueiras Arquivadas ({archived.length})
-                <span className="text-xs font-normal text-gray-400 ml-2">— removidas dos cálculos, histórico preservado</span>
+                <span className="text-xs font-normal text-gray-400 ml-2">— legado; exclua para limpar do sistema</span>
               </div>
               <div className="overflow-x-auto -mx-5 px-5">
-                <table className="tbl w-full min-w-[500px]">
+                <table className="tbl w-full min-w-[640px]">
                   <thead>
-                    <tr><th>ID</th><th>Equipamento</th><th>Sistema</th><th>Posição</th><th>Fornecedor</th><th>Custo</th></tr>
+                    <tr>
+                      <th>ID</th><th>Equipamento</th><th>Sistema</th><th>Posição</th>
+                      <th>Fornecedor</th><th>Custo</th>
+                      <th className="text-center">Ações</th>
+                    </tr>
                   </thead>
                   <tbody>
                     {archived.map(h => (
@@ -275,6 +335,29 @@ export default function MangueirasPage() {
                         <td>{h.position}</td>
                         <td><SupplierBadge s={h.supplier} /></td>
                         <td>{fmt(h.unit_cost)}</td>
+                        <td className="text-center relative" ref={menuOpen === h.id ? menuRef : null}>
+                          <button
+                            className="px-2 py-1 rounded hover:bg-gray-100 text-gray-500 font-bold text-base leading-none"
+                            title="Ações"
+                            onClick={() => setMenuOpen(prev => prev === h.id ? null : h.id)}
+                          >⋮</button>
+                          {menuOpen === h.id && (
+                            <div className="absolute right-0 top-7 z-20 bg-white border border-slate-200 rounded-lg shadow-lg py-1 min-w-[170px] text-left">
+                              <button
+                                className="w-full text-left px-4 py-2 text-xs text-red-600 hover:bg-red-50 font-medium"
+                                onClick={() => deleteHose(h.id, h.equip)}
+                              >
+                                🗑️ Excluir registro
+                              </button>
+                              <button
+                                className="w-full text-left px-4 py-2 text-xs text-gray-500 hover:bg-gray-50"
+                                onClick={() => setMenuOpen(null)}
+                              >
+                                ✕ Cancelar
+                              </button>
+                            </div>
+                          )}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
