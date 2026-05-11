@@ -11,7 +11,7 @@ export interface Hose {
   install_hours: number
   expected_life?: number
   notes?: string
-  status: 'active' | 'replaced'
+  status: 'active' | 'replaced' | 'archived'
   created_at?: string
 }
 

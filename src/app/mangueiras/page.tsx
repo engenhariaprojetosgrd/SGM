@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { Hose } from '@/types'
 import { SYSTEM_LIST, HOSE_TYPES } from '@/types'
@@ -14,14 +14,27 @@ const empty: Partial<Hose> = {
 }
 
 export default function MangueirasPage() {
-  const [hoses,        setHoses]        = useState<Hose[]>([])
-  const [form,         setForm]         = useState<Partial<Hose>>(empty)
-  const [otherSupplier,setOtherSupplier]= useState('')
-  const [loading,      setLoading]      = useState(true)
-  const [saving,       setSaving]       = useState(false)
-  const [msg,          setMsg]          = useState<{text:string;type:'ok'|'err'} | null>(null)
+  const [hoses,         setHoses]         = useState<Hose[]>([])
+  const [form,          setForm]          = useState<Partial<Hose>>(empty)
+  const [otherSupplier, setOtherSupplier] = useState('')
+  const [loading,       setLoading]       = useState(true)
+  const [saving,        setSaving]        = useState(false)
+  const [msg,           setMsg]           = useState<{text:string;type:'ok'|'err'} | null>(null)
+  const [menuOpen,      setMenuOpen]      = useState<string | null>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => { load() }, [])
+
+  // Close dropdown menu when clicking outside
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(null)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   async function load() {
     const { data } = await supabase.from('hoses').select('*').order('created_at', { ascending: false })
@@ -47,8 +60,18 @@ export default function MangueirasPage() {
     setTimeout(() => setMsg(null), 3000)
   }
 
+  async function archiveHose(id: string) {
+    setMenuOpen(null)
+    if (!confirm(`Arquivar mangueira ${id}?\n\nEla será removida dos cálculos ativos, mas todas as ocorrências vinculadas serão mantidas no histórico.`)) return
+    const { error } = await supabase.from('hoses').update({ status: 'archived' }).eq('id', id)
+    if (error) { setMsg({ text: 'Erro ao arquivar: ' + error.message, type: 'err' }) }
+    else { setMsg({ text: `Mangueira ${id} arquivada. Histórico de ocorrências preservado.`, type: 'ok' }); load() }
+    setTimeout(() => setMsg(null), 4000)
+  }
+
   const active   = hoses.filter(h => h.status === 'active')
   const replaced = hoses.filter(h => h.status === 'replaced')
+  const archived = hoses.filter(h => h.status === 'archived')
 
   return (
     <div className="space-y-5">
@@ -61,7 +84,6 @@ export default function MangueirasPage() {
         <form onSubmit={submit}>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
 
-            {/* Equipamento – campo livre */}
             <div>
               <label className="lbl">Equipamento * <span className="text-gray-400 font-normal">(TAG)</span></label>
               <input
@@ -85,7 +107,6 @@ export default function MangueirasPage() {
               <input className="inp" required placeholder="Ex: Cil. Direção L/D" value={form.position} onChange={e => setForm(p => ({ ...p, position: e.target.value }))} />
             </div>
 
-            {/* Fornecedor – TMH / SOTREQ / Outro */}
             <div>
               <label className="lbl">Fornecedor *</label>
               <select className="inp" required value={form.supplier} onChange={e => setForm(p => ({ ...p, supplier: e.target.value }))}>
@@ -148,15 +169,22 @@ export default function MangueirasPage() {
 
       {loading ? <div className="text-center py-8 text-gray-400">Carregando...</div> : (
         <>
+          {/* Mangueiras Ativas */}
           <div className="card">
             <div className="card-title">🟢 Mangueiras Ativas ({active.length})</div>
             <div className="overflow-x-auto -mx-5 px-5">
-              <table className="tbl w-full min-w-[600px]">
+              <table className="tbl w-full min-w-[640px]">
                 <thead>
-                  <tr><th>ID</th><th>Equipamento</th><th>Sistema</th><th>Posição</th><th>Fornecedor</th><th>Tipo</th><th>Custo</th><th>Instalação</th><th>Horímetro</th></tr>
+                  <tr>
+                    <th>ID</th><th>Equipamento</th><th>Sistema</th><th>Posição</th>
+                    <th>Fornecedor</th><th>Tipo</th><th>Custo</th><th>Instalação</th><th>Horímetro</th>
+                    <th className="text-center">Ações</th>
+                  </tr>
                 </thead>
                 <tbody>
-                  {active.length === 0 && <tr><td colSpan={9} className="text-center py-6 text-gray-400">Nenhuma mangueira ativa cadastrada</td></tr>}
+                  {active.length === 0 && (
+                    <tr><td colSpan={10} className="text-center py-6 text-gray-400">Nenhuma mangueira ativa cadastrada</td></tr>
+                  )}
                   {active.map(h => (
                     <tr key={h.id}>
                       <td><span className="badge badge-blue">{h.id}</span></td>
@@ -164,10 +192,36 @@ export default function MangueirasPage() {
                       <td>{h.system}</td>
                       <td>{h.position}</td>
                       <td><SupplierBadge s={h.supplier} /></td>
-                      <td>{h.hose_type?.includes('Genuína') ? <span className="badge badge-blue">{h.hose_type}</span> : <span className="badge badge-gray">{h.hose_type}</span>}</td>
+                      <td>{h.hose_type?.includes('Genuína')
+                        ? <span className="badge badge-blue">OEM</span>
+                        : <span className="badge badge-gray">{h.hose_type}</span>}
+                      </td>
                       <td>{fmt(h.unit_cost)}</td>
                       <td>{h.install_date ?? '—'}</td>
                       <td>{h.install_hours}h</td>
+                      <td className="text-center relative" ref={menuOpen === h.id ? menuRef : null}>
+                        <button
+                          className="px-2 py-1 rounded hover:bg-gray-100 text-gray-500 font-bold text-base leading-none"
+                          title="Ações"
+                          onClick={() => setMenuOpen(prev => prev === h.id ? null : h.id)}
+                        >⋮</button>
+                        {menuOpen === h.id && (
+                          <div className="absolute right-0 top-7 z-20 bg-white border border-slate-200 rounded-lg shadow-lg py-1 min-w-[150px] text-left">
+                            <button
+                              className="w-full text-left px-4 py-2 text-xs text-red-600 hover:bg-red-50 font-medium"
+                              onClick={() => archiveHose(h.id)}
+                            >
+                              📦 Arquivar mangueira
+                            </button>
+                            <button
+                              className="w-full text-left px-4 py-2 text-xs text-gray-500 hover:bg-gray-50"
+                              onClick={() => setMenuOpen(null)}
+                            >
+                              ✕ Cancelar
+                            </button>
+                          </div>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -175,6 +229,7 @@ export default function MangueirasPage() {
             </div>
           </div>
 
+          {/* Mangueiras Substituídas */}
           <div className="card">
             <div className="card-title">🔄 Mangueiras Substituídas ({replaced.length})</div>
             <div className="overflow-x-auto -mx-5 px-5">
@@ -199,6 +254,34 @@ export default function MangueirasPage() {
               </table>
             </div>
           </div>
+
+          {/* Mangueiras Arquivadas — só mostra se existir alguma */}
+          {archived.length > 0 && (
+            <div className="card">
+              <div className="card-title">📦 Mangueiras Arquivadas ({archived.length})
+                <span className="text-xs font-normal text-gray-400 ml-2">— removidas dos cálculos, histórico preservado</span>
+              </div>
+              <div className="overflow-x-auto -mx-5 px-5">
+                <table className="tbl w-full min-w-[500px]">
+                  <thead>
+                    <tr><th>ID</th><th>Equipamento</th><th>Sistema</th><th>Posição</th><th>Fornecedor</th><th>Custo</th></tr>
+                  </thead>
+                  <tbody>
+                    {archived.map(h => (
+                      <tr key={h.id} className="opacity-50">
+                        <td><span className="badge badge-gray">{h.id}</span></td>
+                        <td className="font-bold">{h.equip}</td>
+                        <td>{h.system}</td>
+                        <td>{h.position}</td>
+                        <td><SupplierBadge s={h.supplier} /></td>
+                        <td>{fmt(h.unit_cost)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>
