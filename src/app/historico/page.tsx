@@ -27,6 +27,8 @@ export default function HistoricoPage() {
   }, [])
 
   const filteredHoses = hoses.filter(h => {
+    // não exibir mangueiras 'archived' no histórico — são registros legados
+    if (h.status === 'archived') return false
     if (fEq  && h.equip    !== fEq)  return false
     if (fSup && h.supplier !== fSup) return false
     if (fSta && h.status   !== fSta) return false

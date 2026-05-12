@@ -10,9 +10,9 @@ const PALETTE = ['#2e6da4','#dc2626','#ea580c','#16a34a','#7c3aed','#0891b2','#c
 const SUP_COLOR: Record<string, string> = { SOTREQ: '#16a34a', TMH: '#dc2626' }
 const supColor = (s: string) => SUP_COLOR[s] ?? '#ea580c'
 
-// Chart heights — matching prototype (chart-wrap 240/300px)
-const H  = 200   // regular charts (smaller cards)
-const HT = 240   // taller chart (TCO composition)
+// Chart heights — matching prototype (chart-wrap 240px regular, 200px small)
+const H  = 200   // regular charts (small cards top/bottom)
+const HT = 220   // TCO composition (slightly taller, full width)
 
 interface Props {
   hoses:    Hose[]
@@ -37,16 +37,19 @@ export default function DashboardCharts({ hoses, failures, stats }: Props) {
   if (!failures.length) {
     return (
       <div className="space-y-4">
-        <div className="card">
-          <div className="card-title">📊 Composição do TCO por Fornecedor (R$/h)</div>
-          <div className="flex items-center justify-center h-[240px] text-gray-300 text-sm border border-dashed border-gray-200 rounded">
-            Registre ocorrências para ver a composição do TCO
-          </div>
-        </div>
+        {/* Linha 1: MTBF + Falhas por Fornecedor (ordem do protótipo) */}
         <div className="grid grid-cols-2 gap-4">
           <EmptyChart title="⏱️ MTBF Médio por Fornecedor (h)" />
           <EmptyChart title="🔴 Falhas por Fornecedor" />
         </div>
+        {/* Linha 2: TCO empilhado (full width) */}
+        <div className="card">
+          <div className="card-title">📊 TCO por Fornecedor – Custo Total por Hora (R$/h) <small className="font-normal text-gray-400">Material + Mão de Obra + Parada Produtiva</small></div>
+          <div className="flex items-center justify-center h-[220px] text-gray-300 text-sm border border-dashed border-gray-200 rounded">
+            Registre ocorrências para ver a composição do TCO
+          </div>
+        </div>
+        {/* Linha 3: Falhas por Equipamento + Tipo de Falha */}
         <div className="grid grid-cols-2 gap-4">
           <EmptyChart title="🚧 Falhas por Equipamento" />
           <EmptyChart title="⚙️ Ocorrências por Tipo de Falha" />
@@ -86,28 +89,9 @@ export default function DashboardCharts({ hoses, failures, stats }: Props) {
   return (
     <div className="space-y-4">
 
-      {/* TCO por fornecedor — stacked bar (tall) */}
-      {tcoData.length > 0 && (
-        <div className="card">
-          <div className="card-title">📊 Composição do TCO por Fornecedor (R$/h)</div>
-          <ResponsiveContainer width="100%" height={HT}>
-            <BarChart data={tcoData} margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-              <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `R$${v}`} />
-              <Tooltip formatter={(v: number, name) => [`R$ ${(+v).toFixed(4)}/h`, name]} />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
-              <Bar dataKey="Material"          stackId="a" fill="#2e6da4" />
-              <Bar dataKey="Mão de Obra"       stackId="a" fill="#4a9fd4" />
-              <Bar dataKey="Parada Produtiva"  stackId="a" fill="#dc2626" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-
-      {/* MTBF + Falhas por fornecedor */}
+      {/* Linha 1 — MTBF + Falhas por Fornecedor (igual protótipo) */}
       <div className="grid grid-cols-2 gap-4">
-        {mtbfData.length > 0 && (
+        {mtbfData.length > 0 ? (
           <div className="card">
             <div className="card-title">⏱️ MTBF Médio por Fornecedor (h)</div>
             <ResponsiveContainer width="100%" height={H}>
@@ -122,16 +106,16 @@ export default function DashboardCharts({ hoses, failures, stats }: Props) {
               </BarChart>
             </ResponsiveContainer>
           </div>
-        )}
+        ) : <EmptyChart title="⏱️ MTBF Médio por Fornecedor (h)" />}
 
-        {supPieData.length > 0 && (
+        {supPieData.length > 0 ? (
           <div className="card">
             <div className="card-title">🔴 Falhas por Fornecedor</div>
             <ResponsiveContainer width="100%" height={H}>
               <PieChart>
                 <Pie
                   data={supPieData} dataKey="value" nameKey="name"
-                  cx="50%" cy="50%" outerRadius={72}
+                  cx="50%" cy="50%" outerRadius={62}
                   label={({ name, value }) => `${name}: ${value}`}
                 >
                   {supPieData.map((d, i) => <Cell key={i} fill={supColor(d.name)} />)}
@@ -141,12 +125,38 @@ export default function DashboardCharts({ hoses, failures, stats }: Props) {
               </PieChart>
             </ResponsiveContainer>
           </div>
-        )}
+        ) : <EmptyChart title="🔴 Falhas por Fornecedor" />}
       </div>
 
-      {/* Falhas por equipamento + por tipo */}
+      {/* Linha 2 — TCO empilhado (full width, igual protótipo) */}
+      {tcoData.length > 0 ? (
+        <div className="card">
+          <div className="card-title">📊 TCO por Fornecedor – Custo Total por Hora (R$/h) <small className="font-normal text-gray-400">Material + Mão de Obra + Parada Produtiva</small></div>
+          <ResponsiveContainer width="100%" height={HT}>
+            <BarChart data={tcoData} margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+              <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `R$${v}`} />
+              <Tooltip formatter={(v: number, name) => [`R$ ${(+v).toFixed(4)}/h`, name]} />
+              <Legend wrapperStyle={{ fontSize: 12 }} />
+              <Bar dataKey="Material"          stackId="a" fill="#2e6da4" />
+              <Bar dataKey="Mão de Obra"       stackId="a" fill="#4a9fd4" />
+              <Bar dataKey="Parada Produtiva"  stackId="a" fill="#dc2626" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      ) : (
+        <div className="card">
+          <div className="card-title">📊 TCO por Fornecedor – Custo Total por Hora (R$/h)</div>
+          <div className="flex items-center justify-center h-[220px] text-gray-300 text-sm border border-dashed border-gray-200 rounded">
+            Sem dados ainda
+          </div>
+        </div>
+      )}
+
+      {/* Linha 3 — Falhas por Equipamento + Tipo de Falha */}
       <div className="grid grid-cols-2 gap-4">
-        {equipData.length > 0 && (
+        {equipData.length > 0 ? (
           <div className="card">
             <div className="card-title">🚧 Falhas por Equipamento</div>
             <ResponsiveContainer width="100%" height={H}>
@@ -161,16 +171,16 @@ export default function DashboardCharts({ hoses, failures, stats }: Props) {
               </BarChart>
             </ResponsiveContainer>
           </div>
-        )}
+        ) : <EmptyChart title="🚧 Falhas por Equipamento" />}
 
-        {typeData.length > 0 && (
+        {typeData.length > 0 ? (
           <div className="card">
             <div className="card-title">⚙️ Ocorrências por Tipo de Falha</div>
             <ResponsiveContainer width="100%" height={H}>
               <PieChart>
                 <Pie
                   data={typeData} dataKey="value" nameKey="name"
-                  cx="50%" cy="50%" innerRadius={36} outerRadius={72}
+                  cx="50%" cy="50%" innerRadius={30} outerRadius={62}
                   label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
                   labelLine={false}
                 >
@@ -181,7 +191,7 @@ export default function DashboardCharts({ hoses, failures, stats }: Props) {
               </PieChart>
             </ResponsiveContainer>
           </div>
-        )}
+        ) : <EmptyChart title="⚙️ Ocorrências por Tipo de Falha" />}
       </div>
 
     </div>

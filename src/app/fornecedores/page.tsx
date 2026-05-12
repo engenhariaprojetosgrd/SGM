@@ -199,7 +199,7 @@ export default function FornecedoresPage() {
         <div className="card">
           <div className="card-title">📊 Composição do TCO por Fornecedor</div>
           {tcoChartData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={260}>
+            <ResponsiveContainer width="100%" height={220}>
               <BarChart data={tcoChartData}>
                 <XAxis dataKey="name" tick={{fontSize:12}}/>
                 <YAxis tick={{fontSize:11}} tickFormatter={v=>`R$${v}`}/>
@@ -211,7 +211,7 @@ export default function FornecedoresPage() {
               </BarChart>
             </ResponsiveContainer>
           ) : (
-            <div className="flex items-center justify-center h-[260px] text-gray-300 text-sm border border-dashed border-gray-200 rounded">
+            <div className="flex items-center justify-center h-[220px] text-gray-300 text-sm border border-dashed border-gray-200 rounded">
               Sem dados ainda
             </div>
           )}
@@ -219,11 +219,23 @@ export default function FornecedoresPage() {
         <div className="card">
           <div className="card-title">📈 MTBF vs Custo Unitário</div>
           {scatterData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={260}>
-              <ScatterChart>
+            <ResponsiveContainer width="100%" height={220}>
+              <ScatterChart margin={{ top: 8, right: 20, bottom: 36, left: 10 }}>
                 <CartesianGrid strokeDasharray="3 3"/>
-                <XAxis dataKey="custo" name="Custo (R$)" tick={{fontSize:11}} label={{value:'Custo Unit. (R$)',position:'insideBottom',offset:-5,fontSize:11}}/>
-                <YAxis dataKey="mtbf"  name="MTBF (h)"  tick={{fontSize:11}} label={{value:'MTBF (h)',angle:-90,position:'insideLeft',fontSize:11}}/>
+                <XAxis
+                  type="number"
+                  dataKey="custo"
+                  name="Custo (R$)"
+                  tick={{fontSize:11}}
+                  label={{value:'Custo Unit. (R$)',position:'bottom',offset:8,fontSize:11,fill:'#6c757d'}}
+                />
+                <YAxis
+                  type="number"
+                  dataKey="mtbf"
+                  name="MTBF (h)"
+                  tick={{fontSize:11}}
+                  label={{value:'MTBF (h)',angle:-90,position:'insideLeft',offset:10,fontSize:11,fill:'#6c757d'}}
+                />
                 <Tooltip cursor={{strokeDasharray:'3 3'}} content={({payload})=>{
                   if(!payload?.length) return null
                   const d = payload[0]?.payload
@@ -232,14 +244,14 @@ export default function FornecedoresPage() {
                 {scatterData.map((d,i)=>(
                   <Scatter key={d.name} name={d.name} data={[d]}
                     fill={['#16a34a','#dc2626','#ea580c'][i]??'#888'}
-                    shape={(props: {cx?: number; cy?: number}) => <circle cx={props.cx} cy={props.cy} r={16} fill={['#16a34a','#dc2626','#ea580c'][i]??'#888'} opacity={0.85}/>}
+                    shape={(props: {cx?: number; cy?: number}) => <circle cx={props.cx} cy={props.cy} r={12} fill={['#16a34a','#dc2626','#ea580c'][i]??'#888'} opacity={0.85}/>}
                   />
                 ))}
-                <Legend wrapperStyle={{fontSize:12}}/>
+                <Legend wrapperStyle={{fontSize:11, paddingTop: 4}} verticalAlign="top" align="right" />
               </ScatterChart>
             </ResponsiveContainer>
           ) : (
-            <div className="flex items-center justify-center h-[260px] text-gray-300 text-sm border border-dashed border-gray-200 rounded">
+            <div className="flex items-center justify-center h-[220px] text-gray-300 text-sm border border-dashed border-gray-200 rounded">
               Sem dados ainda
             </div>
           )}

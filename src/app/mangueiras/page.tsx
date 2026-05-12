@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { supabase } from '@/lib/supabase'
 import type { Hose } from '@/types'
 import { SYSTEM_LIST, HOSE_TYPES } from '@/types'
@@ -21,21 +22,39 @@ export default function MangueirasPage() {
   const [loading,       setLoading]       = useState(true)
   const [saving,        setSaving]        = useState(false)
   const [msg,           setMsg]           = useState<{text:string;type:'ok'|'err'} | null>(null)
-  const [menuOpen,      setMenuOpen]      = useState<string | null>(null)
+  const [menu,          setMenu]          = useState<{id:string; x:number; y:number} | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
+  const [mounted, setMounted] = useState(false)
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { load(); setMounted(true) }, [])
 
-  // Close dropdown menu when clicking outside
+  // Close dropdown when clicking outside, scrolling or resizing
   useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setMenuOpen(null)
-      }
+    if (!menu) return
+    function close(e?: Event) {
+      if (e && menuRef.current && menuRef.current.contains(e.target as Node)) return
+      setMenu(null)
     }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
+    document.addEventListener('mousedown', close)
+    window.addEventListener('scroll', close, true)
+    window.addEventListener('resize', close)
+    return () => {
+      document.removeEventListener('mousedown', close)
+      window.removeEventListener('scroll', close, true)
+      window.removeEventListener('resize', close)
+    }
+  }, [menu])
+
+  function openMenu(id: string, e: React.MouseEvent<HTMLButtonElement>) {
+    const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect()
+    if (menu?.id === id) { setMenu(null); return }
+    // posiciona o menu abaixo do botão, alinhado à direita
+    setMenu({
+      id,
+      x: rect.right - 170, // largura do menu = 170px
+      y: rect.bottom + 4
+    })
+  }
 
   async function load() {
     const { data } = await supabase.from('hoses').select('*').order('created_at', { ascending: false })
@@ -70,7 +89,7 @@ export default function MangueirasPage() {
   }
 
   async function deleteHose(id: string, equip: string) {
-    setMenuOpen(null)
+    setMenu(null)
     if (!confirm(
       `Excluir DEFINITIVAMENTE a mangueira ${id} (${equip})?\n\n` +
       `Esta ação NÃO pode ser desfeita. Ocorrências vinculadas a essa mangueira ` +
@@ -85,7 +104,6 @@ export default function MangueirasPage() {
 
   const active   = hoses.filter(h => h.status === 'active')
   const replaced = hoses.filter(h => h.status === 'replaced')
-  const archived = hoses.filter(h => h.status === 'archived')
 
   return (
     <div className="space-y-5">
@@ -225,28 +243,12 @@ export default function MangueirasPage() {
                       <td>{fmt(h.unit_cost)}</td>
                       <td>{h.install_date ?? '—'}</td>
                       <td>{h.install_hours}h</td>
-                      <td className="text-center relative" ref={menuOpen === h.id ? menuRef : null}>
+                      <td className="text-center">
                         <button
                           className="px-2 py-1 rounded hover:bg-gray-100 text-gray-500 font-bold text-base leading-none"
                           title="Ações"
-                          onClick={() => setMenuOpen(prev => prev === h.id ? null : h.id)}
+                          onClick={(e) => openMenu(h.id, e)}
                         >⋮</button>
-                        {menuOpen === h.id && (
-                          <div className="absolute right-0 top-7 z-20 bg-white border border-slate-200 rounded-lg shadow-lg py-1 min-w-[170px] text-left">
-                            <button
-                              className="w-full text-left px-4 py-2 text-xs text-red-600 hover:bg-red-50 font-medium"
-                              onClick={() => deleteHose(h.id, h.equip)}
-                            >
-                              🗑️ Excluir registro
-                            </button>
-                            <button
-                              className="w-full text-left px-4 py-2 text-xs text-gray-500 hover:bg-gray-50"
-                              onClick={() => setMenuOpen(null)}
-                            >
-                              ✕ Cancelar
-                            </button>
-                          </div>
-                        )}
                       </td>
                     </tr>
                   ))}
@@ -280,28 +282,12 @@ export default function MangueirasPage() {
                         <td><SupplierBadge s={h.supplier} /></td>
                         <td>{fmt(h.unit_cost)}</td>
                         <td>{h.install_date ?? '—'}</td>
-                        <td className="text-center relative" ref={menuOpen === h.id ? menuRef : null}>
+                        <td className="text-center">
                           <button
                             className="px-2 py-1 rounded hover:bg-gray-100 text-gray-500 font-bold text-base leading-none"
                             title="Ações"
-                            onClick={() => setMenuOpen(prev => prev === h.id ? null : h.id)}
+                            onClick={(e) => openMenu(h.id, e)}
                           >⋮</button>
-                          {menuOpen === h.id && (
-                            <div className="absolute right-0 top-7 z-20 bg-white border border-slate-200 rounded-lg shadow-lg py-1 min-w-[170px] text-left">
-                              <button
-                                className="w-full text-left px-4 py-2 text-xs text-red-600 hover:bg-red-50 font-medium"
-                                onClick={() => deleteHose(h.id, h.equip)}
-                              >
-                                🗑️ Excluir registro
-                              </button>
-                              <button
-                                className="w-full text-left px-4 py-2 text-xs text-gray-500 hover:bg-gray-50"
-                                onClick={() => setMenuOpen(null)}
-                              >
-                                ✕ Cancelar
-                              </button>
-                            </div>
-                          )}
                         </td>
                       </tr>
                     ))}
@@ -311,61 +297,38 @@ export default function MangueirasPage() {
             </div>
           )}
 
-          {/* Mangueiras Arquivadas — legado; só aparece se houver alguma; permite excluir */}
-          {archived.length > 0 && (
-            <div className="card">
-              <div className="card-title">📦 Mangueiras Arquivadas ({archived.length})
-                <span className="text-xs font-normal text-gray-400 ml-2">— legado; exclua para limpar do sistema</span>
-              </div>
-              <div className="overflow-x-auto -mx-5 px-5">
-                <table className="tbl w-full min-w-[640px]">
-                  <thead>
-                    <tr>
-                      <th>ID</th><th>Equipamento</th><th>Sistema</th><th>Posição</th>
-                      <th>Fornecedor</th><th>Custo</th>
-                      <th className="text-center">Ações</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {archived.map(h => (
-                      <tr key={h.id} className="opacity-50">
-                        <td><span className="badge badge-gray">{h.id}</span></td>
-                        <td className="font-bold">{h.equip}</td>
-                        <td>{h.system}</td>
-                        <td>{h.position}</td>
-                        <td><SupplierBadge s={h.supplier} /></td>
-                        <td>{fmt(h.unit_cost)}</td>
-                        <td className="text-center relative" ref={menuOpen === h.id ? menuRef : null}>
-                          <button
-                            className="px-2 py-1 rounded hover:bg-gray-100 text-gray-500 font-bold text-base leading-none"
-                            title="Ações"
-                            onClick={() => setMenuOpen(prev => prev === h.id ? null : h.id)}
-                          >⋮</button>
-                          {menuOpen === h.id && (
-                            <div className="absolute right-0 top-7 z-20 bg-white border border-slate-200 rounded-lg shadow-lg py-1 min-w-[170px] text-left">
-                              <button
-                                className="w-full text-left px-4 py-2 text-xs text-red-600 hover:bg-red-50 font-medium"
-                                onClick={() => deleteHose(h.id, h.equip)}
-                              >
-                                🗑️ Excluir registro
-                              </button>
-                              <button
-                                className="w-full text-left px-4 py-2 text-xs text-gray-500 hover:bg-gray-50"
-                                onClick={() => setMenuOpen(null)}
-                              >
-                                ✕ Cancelar
-                              </button>
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
         </>
+      )}
+
+      {/* Dropdown global — renderizado via portal para não ser cortado pelo overflow das tabelas */}
+      {mounted && menu && createPortal(
+        <div
+          ref={menuRef}
+          className="fixed z-50 bg-white border border-slate-200 rounded-lg shadow-lg py-1 w-[170px] text-left"
+          style={{ left: Math.max(8, menu.x), top: menu.y }}
+        >
+          {(() => {
+            const h = hoses.find(x => x.id === menu.id)
+            if (!h) return null
+            return (
+              <>
+                <button
+                  className="w-full text-left px-4 py-2 text-xs text-red-600 hover:bg-red-50 font-medium"
+                  onClick={() => deleteHose(h.id, h.equip)}
+                >
+                  🗑️ Excluir registro
+                </button>
+                <button
+                  className="w-full text-left px-4 py-2 text-xs text-gray-500 hover:bg-gray-50"
+                  onClick={() => setMenu(null)}
+                >
+                  ✕ Cancelar
+                </button>
+              </>
+            )
+          })()}
+        </div>,
+        document.body
       )}
     </div>
   )
