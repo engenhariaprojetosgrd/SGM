@@ -26,9 +26,16 @@ export default function MangueirasPage() {
   const menuRef = useRef<HTMLDivElement>(null)
   const [mounted, setMounted] = useState(false)
 
+  // ── Estado do modal de edição ──
+  const [editOpen,         setEditOpen]         = useState(false)
+  const [editForm,         setEditForm]         = useState<Partial<Hose>>(empty)
+  const [editOtherSupplier,setEditOtherSupplier]= useState('')
+  const [editOtherSystem,  setEditOtherSystem]  = useState('')
+  const [savingEdit,       setSavingEdit]       = useState(false)
+
   useEffect(() => { load(); setMounted(true) }, [])
 
-  // Close dropdown when clicking outside, scrolling or resizing
+  // Fechar dropdown ao clicar fora, scroll ou resize
   useEffect(() => {
     if (!menu) return
     function close(e?: Event) {
@@ -45,15 +52,18 @@ export default function MangueirasPage() {
     }
   }, [menu])
 
+  // Fechar modal com ESC
+  useEffect(() => {
+    if (!editOpen) return
+    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') setEditOpen(false) }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [editOpen])
+
   function openMenu(id: string, e: React.MouseEvent<HTMLButtonElement>) {
     const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect()
     if (menu?.id === id) { setMenu(null); return }
-    // posiciona o menu abaixo do botão, alinhado à direita
-    setMenu({
-      id,
-      x: rect.right - 170, // largura do menu = 170px
-      y: rect.bottom + 4
-    })
+    setMenu({ id, x: rect.right - 180, y: rect.bottom + 4 })
   }
 
   async function load() {
@@ -67,6 +77,7 @@ export default function MangueirasPage() {
     return 'H' + String((nums.length ? Math.max(...nums) : 0) + 1).padStart(3, '0')
   }
 
+  // ── Cadastro ──
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     const finalSupplier = form.supplier === 'Outro' ? otherSupplier.trim() : form.supplier
@@ -88,18 +99,56 @@ export default function MangueirasPage() {
     setTimeout(() => setMsg(null), 3000)
   }
 
+  // ── Excluir ──
   async function deleteHose(id: string, equip: string) {
     setMenu(null)
     if (!confirm(
       `Excluir DEFINITIVAMENTE a mangueira ${id} (${equip})?\n\n` +
       `Esta ação NÃO pode ser desfeita. Ocorrências vinculadas a essa mangueira ` +
-      `ficarão sem referência (mas o histórico delas será mantido).\n\n` +
-      `Deseja continuar?`
+      `ficarão sem referência (mas o histórico delas será mantido).\n\nDeseja continuar?`
     )) return
     const { error } = await supabase.from('hoses').delete().eq('id', id)
     if (error) { setMsg({ text: 'Erro ao excluir: ' + error.message, type: 'err' }) }
     else { setMsg({ text: `Mangueira ${id} excluída.`, type: 'ok' }); load() }
     setTimeout(() => setMsg(null), 4000)
+  }
+
+  // ── Abrir modal de edição ──
+  function startEdit(h: Hose) {
+    setMenu(null)
+    // Detectar se supplier/system são customizados (não estão nas listas padrão)
+    const knownSuppliers = SUPPLIERS.filter(s => s !== 'Outro')
+    const isCustomSupplier = !knownSuppliers.includes(h.supplier)
+    const isCustomSystem   = !SYSTEM_LIST.includes(h.system)
+    setEditForm({
+      ...h,
+      supplier: isCustomSupplier ? 'Outro' : h.supplier,
+      system:   isCustomSystem   ? 'Outro' : h.system,
+    })
+    setEditOtherSupplier(isCustomSupplier ? h.supplier : '')
+    setEditOtherSystem(isCustomSystem   ? h.system   : '')
+    setEditOpen(true)
+  }
+
+  // ── Salvar edição ──
+  async function saveEdit(e: React.FormEvent) {
+    e.preventDefault()
+    const finalSupplier = editForm.supplier === 'Outro' ? editOtherSupplier.trim() : editForm.supplier
+    if (!finalSupplier) { setMsg({ text: 'Informe o nome do fornecedor', type: 'err' }); return }
+    const finalSystem = editForm.system === 'Outro' ? editOtherSystem.trim() : editForm.system
+    if (!finalSystem) { setMsg({ text: 'Informe o sistema', type: 'err' }); return }
+    setSavingEdit(true)
+    const { id, created_at, ...fields } = editForm as Hose
+    const payload = { ...fields, supplier: finalSupplier, system: finalSystem }
+    const { error } = await supabase.from('hoses').update(payload).eq('id', id)
+    if (error) { setMsg({ text: 'Erro ao salvar: ' + error.message, type: 'err' }) }
+    else {
+      setMsg({ text: `Mangueira ${id} atualizada com sucesso!`, type: 'ok' })
+      setEditOpen(false)
+      load()
+    }
+    setSavingEdit(false)
+    setTimeout(() => setMsg(null), 3000)
   }
 
   const active   = hoses.filter(h => h.status === 'active')
@@ -111,6 +160,7 @@ export default function MangueirasPage() {
 
       {msg && <div className={`alert ${msg.type === 'ok' ? 'alert-success' : 'alert-danger'}`}>{msg.text}</div>}
 
+      {/* ── Formulário de cadastro ── */}
       <div className="card">
         <div className="card-title">Nova Mangueira Instalada</div>
         <form onSubmit={submit}>
@@ -137,12 +187,7 @@ export default function MangueirasPage() {
             {form.system === 'Outro' && (
               <div>
                 <label className="lbl">Nome do Sistema *</label>
-                <input
-                  className="inp" required
-                  placeholder="Ex: Sistema de Suspensão"
-                  value={otherSystem}
-                  onChange={e => setOtherSystem(e.target.value)}
-                />
+                <input className="inp" required placeholder="Ex: Sistema de Suspensão" value={otherSystem} onChange={e => setOtherSystem(e.target.value)} />
               </div>
             )}
 
@@ -213,21 +258,29 @@ export default function MangueirasPage() {
 
       {loading ? <div className="text-center py-8 text-gray-400">Carregando...</div> : (
         <>
-          {/* Mangueiras Ativas */}
+          {/* ── Mangueiras Ativas ── */}
           <div className="card">
             <div className="card-title">🟢 Mangueiras Ativas ({active.length})</div>
             <div className="overflow-x-auto -mx-5 px-5">
-              <table className="tbl w-full min-w-[640px]">
+              <table className="tbl w-full min-w-[780px]">
                 <thead>
                   <tr>
-                    <th>ID</th><th>Equipamento</th><th>Sistema</th><th>Posição</th>
-                    <th>Fornecedor</th><th>Tipo</th><th>Custo</th><th>Instalação</th><th>Horímetro</th>
+                    <th>ID</th>
+                    <th>Equipamento</th>
+                    <th>Sistema</th>
+                    <th>Posição</th>
+                    <th>Fornecedor</th>
+                    <th>Nº Código</th>
+                    <th>Tipo</th>
+                    <th>Custo</th>
+                    <th>Instalação</th>
+                    <th>Horímetro</th>
                     <th className="text-center">Ações</th>
                   </tr>
                 </thead>
                 <tbody>
                   {active.length === 0 && (
-                    <tr><td colSpan={10} className="text-center py-6 text-gray-400">Nenhuma mangueira ativa cadastrada</td></tr>
+                    <tr><td colSpan={11} className="text-center py-6 text-gray-400">Nenhuma mangueira ativa cadastrada</td></tr>
                   )}
                   {active.map(h => (
                     <tr key={h.id}>
@@ -236,6 +289,11 @@ export default function MangueirasPage() {
                       <td>{h.system}</td>
                       <td>{h.position}</td>
                       <td><SupplierBadge s={h.supplier} /></td>
+                      <td>
+                        {h.part_number
+                          ? <span className="font-mono text-xs bg-slate-100 px-1.5 py-0.5 rounded text-slate-700">{h.part_number}</span>
+                          : <span className="text-gray-300">—</span>}
+                      </td>
                       <td>{h.hose_type?.includes('Genuína')
                         ? <span className="badge badge-blue">OEM</span>
                         : <span className="badge badge-gray">{h.hose_type}</span>}
@@ -257,7 +315,7 @@ export default function MangueirasPage() {
             </div>
           </div>
 
-          {/* Mangueiras Substituídas — histórico para MTBF/TCO */}
+          {/* ── Mangueiras Substituídas ── */}
           {replaced.length > 0 && (
             <div className="card">
               <div className="card-title">🔄 Mangueiras Substituídas ({replaced.length})
@@ -268,7 +326,7 @@ export default function MangueirasPage() {
                   <thead>
                     <tr>
                       <th>ID</th><th>Equipamento</th><th>Sistema</th><th>Posição</th>
-                      <th>Fornecedor</th><th>Custo</th><th>Instalação</th>
+                      <th>Fornecedor</th><th>Nº Código</th><th>Custo</th><th>Instalação</th>
                       <th className="text-center">Ações</th>
                     </tr>
                   </thead>
@@ -280,6 +338,11 @@ export default function MangueirasPage() {
                         <td>{h.system}</td>
                         <td>{h.position}</td>
                         <td><SupplierBadge s={h.supplier} /></td>
+                        <td>
+                          {h.part_number
+                            ? <span className="font-mono text-xs bg-slate-100 px-1.5 py-0.5 rounded text-slate-700">{h.part_number}</span>
+                            : <span className="text-gray-300">—</span>}
+                        </td>
                         <td>{fmt(h.unit_cost)}</td>
                         <td>{h.install_date ?? '—'}</td>
                         <td className="text-center">
@@ -296,15 +359,14 @@ export default function MangueirasPage() {
               </div>
             </div>
           )}
-
         </>
       )}
 
-      {/* Dropdown global — renderizado via portal para não ser cortado pelo overflow das tabelas */}
+      {/* ── Dropdown global (portal) ── */}
       {mounted && menu && createPortal(
         <div
           ref={menuRef}
-          className="fixed z-50 bg-white border border-slate-200 rounded-lg shadow-lg py-1 w-[170px] text-left"
+          className="fixed z-50 bg-white border border-slate-200 rounded-lg shadow-lg py-1 w-[180px] text-left"
           style={{ left: Math.max(8, menu.x), top: menu.y }}
         >
           {(() => {
@@ -312,6 +374,13 @@ export default function MangueirasPage() {
             if (!h) return null
             return (
               <>
+                <button
+                  className="w-full text-left px-4 py-2 text-xs text-[#1a3a5c] hover:bg-blue-50 font-medium"
+                  onClick={() => startEdit(h)}
+                >
+                  ✏️ Editar mangueira
+                </button>
+                <div className="border-t border-slate-100 my-1" />
                 <button
                   className="w-full text-left px-4 py-2 text-xs text-red-600 hover:bg-red-50 font-medium"
                   onClick={() => deleteHose(h.id, h.equip)}
@@ -327,6 +396,139 @@ export default function MangueirasPage() {
               </>
             )
           })()}
+        </div>,
+        document.body
+      )}
+
+      {/* ── Modal de Edição ── */}
+      {mounted && editOpen && createPortal(
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: 'rgba(0,0,0,0.5)' }}
+          onClick={e => { if (e.target === e.currentTarget) setEditOpen(false) }}
+        >
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
+              <div>
+                <h2 className="text-base font-bold text-[#1a3a5c]">✏️ Editar Mangueira</h2>
+                <p className="text-xs text-gray-400 mt-0.5">ID: <strong>{editForm.id}</strong> · Equipamento: <strong>{editForm.equip}</strong></p>
+              </div>
+              <button
+                onClick={() => setEditOpen(false)}
+                className="text-gray-400 hover:text-gray-600 text-xl font-bold leading-none px-2"
+              >✕</button>
+            </div>
+
+            {/* Formulário */}
+            <form onSubmit={saveEdit} className="px-6 py-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+
+                <div>
+                  <label className="lbl">Equipamento * <span className="text-gray-400 font-normal">(TAG)</span></label>
+                  <input
+                    className="inp" required
+                    value={editForm.equip ?? ''}
+                    onChange={e => setEditForm(p => ({ ...p, equip: e.target.value.toUpperCase() }))}
+                  />
+                </div>
+
+                <div>
+                  <label className="lbl">Sistema *</label>
+                  <select className="inp" required value={editForm.system ?? ''} onChange={e => setEditForm(p => ({ ...p, system: e.target.value }))}>
+                    <option value="">Selecionar...</option>
+                    {SYSTEM_LIST.map(s => <option key={s}>{s}</option>)}
+                  </select>
+                </div>
+
+                {editForm.system === 'Outro' && (
+                  <div>
+                    <label className="lbl">Nome do Sistema *</label>
+                    <input className="inp" required placeholder="Ex: Sistema de Suspensão" value={editOtherSystem} onChange={e => setEditOtherSystem(e.target.value)} />
+                  </div>
+                )}
+
+                <div>
+                  <label className="lbl">Posição / Local *</label>
+                  <input className="inp" required value={editForm.position ?? ''} onChange={e => setEditForm(p => ({ ...p, position: e.target.value }))} />
+                </div>
+
+                <div>
+                  <label className="lbl">Fornecedor *</label>
+                  <select className="inp" required value={editForm.supplier ?? ''} onChange={e => setEditForm(p => ({ ...p, supplier: e.target.value }))}>
+                    {SUPPLIERS.map(s => <option key={s}>{s}</option>)}
+                  </select>
+                </div>
+
+                {editForm.supplier === 'Outro' && (
+                  <div>
+                    <label className="lbl">Nome do Fornecedor *</label>
+                    <input className="inp" required placeholder="Informe o fornecedor" value={editOtherSupplier} onChange={e => setEditOtherSupplier(e.target.value)} />
+                  </div>
+                )}
+
+                <div>
+                  <label className="lbl">Tipo</label>
+                  <select className="inp" value={editForm.hose_type ?? ''} onChange={e => setEditForm(p => ({ ...p, hose_type: e.target.value }))}>
+                    {HOSE_TYPES.map(t => <option key={t}>{t}</option>)}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="lbl">Nº Peça / Código</label>
+                  <input
+                    className="inp font-mono"
+                    placeholder="Ex: CAT-7J8836"
+                    value={editForm.part_number ?? ''}
+                    onChange={e => setEditForm(p => ({ ...p, part_number: e.target.value }))}
+                  />
+                </div>
+
+                <div>
+                  <label className="lbl">Custo Unitário (R$) *</label>
+                  <input className="inp" type="number" min="0" step="0.01" required value={editForm.unit_cost || ''} onChange={e => setEditForm(p => ({ ...p, unit_cost: parseFloat(e.target.value) || 0 }))} />
+                </div>
+
+                <div>
+                  <label className="lbl">Data de Instalação</label>
+                  <input className="inp" type="date" value={editForm.install_date ?? ''} onChange={e => setEditForm(p => ({ ...p, install_date: e.target.value }))} />
+                </div>
+
+                <div>
+                  <label className="lbl">Horímetro na Instalação (h) *</label>
+                  <input className="inp" type="number" min="0" required value={editForm.install_hours || ''} onChange={e => setEditForm(p => ({ ...p, install_hours: parseFloat(e.target.value) || 0 }))} />
+                </div>
+
+                <div>
+                  <label className="lbl">Vida Útil Esperada (h)</label>
+                  <input className="inp" type="number" min="0" placeholder="Ex: 2000" value={editForm.expected_life ?? ''} onChange={e => setEditForm(p => ({ ...p, expected_life: parseInt(e.target.value) || undefined }))} />
+                </div>
+
+                <div className="col-span-1 sm:col-span-2">
+                  <label className="lbl">Observações</label>
+                  <textarea className="inp h-16 resize-none" value={editForm.notes ?? ''} onChange={e => setEditForm(p => ({ ...p, notes: e.target.value }))} />
+                </div>
+              </div>
+
+              {/* Botões */}
+              <div className="flex gap-3 mt-5 pt-4 border-t border-slate-100">
+                <button
+                  type="submit"
+                  className="btn btn-primary flex-1 sm:flex-none sm:w-40"
+                  disabled={savingEdit}
+                >
+                  {savingEdit ? 'Salvando...' : '✓ Salvar alterações'}
+                </button>
+                <button
+                  type="button"
+                  className="btn flex-1 sm:flex-none sm:w-28 bg-white border border-slate-300 text-slate-600 hover:bg-slate-50"
+                  onClick={() => setEditOpen(false)}
+                >
+                  Cancelar
+                </button>
+              </div>
+            </form>
+          </div>
         </div>,
         document.body
       )}
